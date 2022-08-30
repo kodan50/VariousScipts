@@ -1,0 +1,23 @@
+:: Run as admin.
+
+:: Since we need internet, let's see if we can stop Windows Update.
+net stop wuauserv
+
+:: We need to enable running scripts before we can use the module.
+echo y | powershell -inputformat none -outputformat none -Command set-executionpolicy remotesigned
+
+::Now, we will install the module. If we don't use both, everything falls apart. I don't know why or care why.
+echo y | powershell -inputformat none -outputformat none -Command Install-Module -Name PSWindowsUpdate
+echo y | powershell -inputformat none -outputformat none -Command Install-Module PSWindowsUpdate
+
+::Next, we need to "import" the module. Is this like installing? I think this is like installing.
+echo y | powershell -inputformat none -outputformat none -Command Import-Module PSWindowsUpdate
+
+::Add the offending KB article to some block list.
+echo y | powershell -inputformat none -outputformat none -Command Hide-WindowsUpdate -KBArticleID 5016616
+
+:: Start the Windows Update service.
+net start wuauserv
+
+::Since we have to be online to run this, there is a chance Windows snuck the offensive update in while we weren't looking.
+wusa /uninstall /kb:5016616
