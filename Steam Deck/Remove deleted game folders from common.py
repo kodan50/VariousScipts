@@ -1,4 +1,4 @@
-# The following was written entirely by ChatGPT and should be used with extreme caution. Or reckless abaondon. Dealer's choice.
+# The following was written entirely by ChatGPT and should be used with extreme caution. Or reckless abandon. Dealer's choice.
 import os
 import shutil
 
