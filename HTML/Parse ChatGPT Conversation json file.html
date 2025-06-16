@@ -1,0 +1,487 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ChatGPT Chat Viewer</title>
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #f3f4f6; /* Light gray background */
+        }
+        /* Custom scrollbar for better aesthetics */
+        ::-webkit-scrollbar {
+            width: 8px;
+            height: 8px;
+        }
+        ::-webkit-scrollbar-track {
+            background: #e5e7eb; /* Lighter track */
+            border-radius: 10px;
+        }
+        ::-webkit-scrollbar-thumb {
+            background: #9ca3af; /* Gray thumb */
+            border-radius: 10px;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+            background: #6b7280; /* Darker on hover */
+        }
+
+        /* Basic styling for pre and code blocks within chat messages */
+        pre {
+            background-color: #1f2937; /* Dark gray for code blocks */
+            color: #f9fafb; /* Light text for code */
+            padding: 1rem;
+            border-radius: 0.5rem;
+            overflow-x: auto;
+            font-family: monospace;
+            margin-top: 0.75rem;
+            margin-bottom: 0.75rem;
+        }
+        code {
+            background-color: #e5e7eb; /* Light gray for inline code */
+            color: #1f2937; /* Dark text for inline code */
+            padding: 0.15rem 0.3rem;
+            border-radius: 0.25rem;
+            font-family: monospace;
+        }
+    </style>
+</head>
+<body class="p-4 md:p-8 min-h-screen flex flex-col items-center">
+
+    <div class="max-w-4xl w-full bg-white shadow-lg rounded-lg p-6 md:p-8">
+        <h1 class="text-3xl font-bold text-center text-gray-800 mb-6">ChatGPT Chat Viewer</h1>
+
+        <div class="mb-6 flex flex-col sm:flex-row items-center justify-center gap-4">
+            <label for="jsonFile" class="block text-gray-700 font-medium cursor-pointer">
+                Upload ChatGPT JSON File:
+            </label>
+            <input type="file" id="jsonFile" accept=".json" class="block w-full sm:w-auto text-sm text-gray-500
+                file:mr-4 file:py-2 file:px-4
+                file:rounded-full file:border-0
+                file:text-sm file:font-semibold
+                file:bg-violet-50 file:text-violet-700
+                hover:file:bg-violet-100
+                focus:outline-none focus:ring-2 focus:ring-violet-500 focus:ring-offset-2">
+        </div>
+
+        <div id="loadingIndicator" class="hidden text-center text-blue-600 text-lg font-medium mb-4">
+            Loading and parsing chats...
+        </div>
+
+        <div id="errorDisplay" class="hidden bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded relative mb-4" role="alert">
+            <strong class="font-bold">Error:</strong>
+            <span class="block sm:inline" id="errorMessage"></span>
+        </div>
+
+        <!-- Search Bar -->
+        <div class="mb-6 flex flex-col sm:flex-row items-center justify-center gap-4 p-4 bg-gray-50 rounded-md shadow-inner">
+            <label for="searchInput" class="block text-gray-700 font-medium">Search Chats:</label>
+            <input type="text" id="searchInput" placeholder="Enter keyword..." class="flex-1 px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent">
+            <button id="searchButton" class="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded-md shadow-md transition-colors duration-200">
+                Search
+            </button>
+        </div>
+
+        <div id="chatNavigation" class="hidden bg-gray-50 p-4 rounded-md mb-6 max-h-60 overflow-y-auto shadow-inner">
+            <h2 class="text-xl font-semibold text-gray-700 mb-3">Chat Index</h2>
+            <ul id="navList" class="space-y-2">
+                <!-- Navigation links will be populated here -->
+            </ul>
+        </div>
+
+        <div id="chatContainer" class="space-y-6">
+            <!-- Chats will be dynamically loaded here -->
+            <p class="text-center text-gray-500">Upload a JSON file to see your chats.</p>
+        </div>
+    </div>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            const jsonFile = document.getElementById('jsonFile');
+            const chatContainer = document.getElementById('chatContainer');
+            const loadingIndicator = document.getElementById('loadingIndicator');
+            const errorDisplay = document.getElementById('errorDisplay');
+            const errorMessageSpan = document.getElementById('errorMessage');
+            const chatNavigation = document.getElementById('chatNavigation');
+            const navList = document.getElementById('navList');
+            const searchInput = document.getElementById('searchInput');
+            const searchButton = document.getElementById('searchButton');
+
+            let allChatsData = []; // Store all parsed chat data
+
+            // Listen for file selection
+            jsonFile.addEventListener('change', handleFileSelect);
+
+            // Listen for search button click and Enter key press in search input
+            searchButton.addEventListener('click', () => filterChats(searchInput.value));
+            searchInput.addEventListener('keyup', (event) => {
+                if (event.key === 'Enter') {
+                    filterChats(searchInput.value);
+                }
+            });
+
+            /**
+             * Handles the file selection event.
+             * Reads the selected JSON file and initiates parsing.
+             * @param {Event} event The change event from the file input.
+             */
+            function handleFileSelect(event) {
+                const file = event.target.files[0];
+                if (!file) {
+                    displayError('No file selected.');
+                    return;
+                }
+
+                // Clear previous content and show loading indicator
+                chatContainer.innerHTML = '';
+                navList.innerHTML = '';
+                errorDisplay.classList.add('hidden');
+                loadingIndicator.classList.remove('hidden');
+                chatNavigation.classList.add('hidden');
+                searchInput.value = ''; // Clear search input on new file load
+
+                const reader = new FileReader();
+
+                reader.onload = (e) => {
+                    try {
+                        const json = JSON.parse(e.target.result);
+                        allChatsData = json; // Store all chats
+                        displayChats(allChatsData); // Display all initially
+                    } catch (error) {
+                        console.error('Error parsing JSON:', error);
+                        displayError('Invalid JSON file. Please ensure it\'s a valid ChatGPT export JSON.');
+                    } finally {
+                        loadingIndicator.classList.add('hidden');
+                    }
+                };
+
+                reader.onerror = () => {
+                    loadingIndicator.classList.add('hidden');
+                    displayError('Failed to read file.');
+                };
+
+                reader.readAsText(file);
+            }
+
+            /**
+             * Displays an error message to the user.
+             * @param {string} message The error message to display.
+             */
+            function displayError(message) {
+                errorMessageSpan.textContent = message;
+                errorDisplay.classList.remove('hidden');
+                chatContainer.innerHTML = '<p class="text-center text-red-500">Failed to load chats. Please check the error above.</p>';
+            }
+
+            /**
+             * Processes the parsed JSON data and renders the chats.
+             * @param {Array<Object>} chats An array of chat objects from the JSON.
+             */
+            function displayChats(chats) {
+                if (!Array.isArray(chats) || chats.length === 0) {
+                    displayError('No chat data found in the JSON file. Please ensure it\'s a valid ChatGPT export.');
+                    return;
+                }
+
+                chatContainer.innerHTML = ''; // Clear previous chats
+                navList.innerHTML = '';      // Clear previous nav links
+
+                chats.forEach((chat, index) => {
+                    // Create navigation link
+                    const navItem = document.createElement('li');
+                    const navLink = document.createElement('a');
+                    navLink.href = `#chat-${index}`;
+                    navLink.textContent = chat.title || `Untitled Chat ${index + 1}`;
+                    navLink.classList.add('text-blue-600', 'hover:text-blue-800', 'hover:underline', 'transition-colors', 'duration-200');
+                    navLink.onclick = (e) => {
+                        e.preventDefault(); // Prevent default hash jump behavior
+                        const targetChat = document.getElementById(`chat-${index}`);
+                        if (targetChat) {
+                            targetChat.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                            // Ensure the chat is expanded when navigated to
+                            const messagesDiv = targetChat.querySelector('.chat-messages');
+                            const toggleButton = targetChat.querySelector('.toggle-chat-btn');
+                            if (messagesDiv && messagesDiv.classList.contains('hidden')) {
+                                messagesDiv.classList.remove('hidden');
+                                if (toggleButton) {
+                                    toggleButton.innerHTML = '&#9660;'; // Down arrow for expanded
+                                }
+                            }
+                        }
+                    };
+                    navItem.appendChild(navLink);
+                    navList.appendChild(navItem);
+
+                    // Create chat card
+                    const chatCard = document.createElement('div');
+                    chatCard.id = `chat-${index}`;
+                    chatCard.classList.add('bg-gray-100', 'rounded-lg', 'shadow-md', 'overflow-hidden');
+                    chatCard.dataset.chatIndex = index; // Store original index for filtering
+
+                    // Chat header (collapsible trigger)
+                    const chatHeader = document.createElement('div');
+                    chatHeader.classList.add('flex', 'items-center', 'justify-between', 'p-4', 'bg-gray-200', 'hover:bg-gray-300', 'cursor-pointer', 'rounded-t-lg');
+                    chatHeader.tabIndex = 0; // Make it focusable
+                    chatHeader.setAttribute('role', 'button');
+                    chatHeader.setAttribute('aria-expanded', 'false');
+
+                    const chatTitle = document.createElement('h2');
+                    chatTitle.classList.add('text-xl', 'font-semibold', 'text-gray-800', 'flex-1');
+                    chatTitle.textContent = chat.title || `Untitled Chat ${index + 1}`;
+
+                    const toggleButton = document.createElement('button');
+                    toggleButton.classList.add('toggle-chat-btn', 'text-gray-600', 'text-xl', 'font-bold', 'ml-4', 'w-8', 'h-8', 'flex', 'items-center', 'justify-center', 'rounded-full', 'hover:bg-gray-400', 'transition-colors', 'duration-200');
+                    toggleButton.innerHTML = '&#9658;'; // Right arrow (collapsed state)
+                    toggleButton.setAttribute('aria-label', 'Toggle chat visibility');
+
+                    chatHeader.appendChild(chatTitle);
+                    chatHeader.appendChild(toggleButton);
+                    chatCard.appendChild(chatHeader);
+
+                    // Chat messages container (collapsible content)
+                    const chatMessages = document.createElement('div');
+                    chatMessages.classList.add('chat-messages', 'hidden', 'p-4'); // Hidden by default
+
+                    // Store messages directly for search efficiency later
+                    const extractedMessages = extractMessages(chat.mapping, chat.current_node);
+                    chatCard.dataset.chatContent = JSON.stringify(extractedMessages.map(msg => msg.content?.parts?.join('\n') || ''));
+
+                    if (extractedMessages.length > 0) {
+                        extractedMessages.forEach(msg => {
+                            if (msg && msg.content && msg.content.parts && msg.content.parts.length > 0) {
+                                const messageDiv = document.createElement('div');
+                                messageDiv.classList.add('mb-4', 'p-3', 'rounded-lg', 'shadow-sm', 'break-words');
+
+                                const role = msg.author?.role || 'unknown';
+                                const content = msg.content.parts.join('\n'); // Join parts if multiple
+
+                                let roleText = '';
+                                let roleClass = '';
+
+                                if (role === 'user') {
+                                    roleText = 'You';
+                                    roleClass = 'bg-blue-50 text-blue-800';
+                                } else if (role === 'assistant') {
+                                    roleText = 'ChatGPT';
+                                    roleClass = 'bg-green-50 text-green-800';
+                                } else {
+                                    roleText = 'System'; // Or another unknown role
+                                    roleClass = 'bg-gray-50 text-gray-800';
+                                }
+
+                                // Fix: Split the class string by space and add each class individually
+                                messageDiv.classList.add(...roleClass.split(' '));
+
+                                const authorSpan = document.createElement('span');
+                                authorSpan.classList.add('font-semibold', 'block', 'mb-1', 'capitalize');
+                                authorSpan.textContent = `${roleText}:`;
+                                messageDiv.appendChild(authorSpan);
+
+                                // Use a temporary div to render markdown-like content (basic handling for now)
+                                const contentDiv = document.createElement('div');
+                                // Basic markdown-like formatting: bold, italic, code blocks
+                                let formattedContent = content
+                                    .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>') // **bold**
+                                    .replace(/\*(.*?)\*/g, '<em>$1</em>')     // *italic*
+                                    .replace(/`(.*?)`/g, '<code>$1</code>');  // `inline code`
+
+                                // Simple pre-block detection for multi-line code
+                                formattedContent = formattedContent.replace(/```(.*?)```/gs, (match, code) => {
+                                    return `<pre>${code.replace(/</g, '&lt;').replace(/>/g, '&gt;')}</pre>`;
+                                });
+
+
+                                contentDiv.innerHTML = formattedContent;
+                                messageDiv.appendChild(contentDiv);
+                                chatMessages.appendChild(messageDiv);
+                            }
+                        });
+                    } else {
+                        const noMessages = document.createElement('p');
+                        noMessages.classList.add('text-gray-600', 'italic', 'p-4');
+                        noMessages.textContent = 'No messages found in this chat.';
+                        chatMessages.appendChild(noMessages);
+                    }
+
+                    chatCard.appendChild(chatMessages);
+                    chatContainer.appendChild(chatCard);
+
+                    // Add click listener to toggle collapse
+                    chatHeader.addEventListener('click', () => {
+                        const isExpanded = chatMessages.classList.toggle('hidden');
+                        toggleButton.innerHTML = isExpanded ? '&#9658;' : '&#9660;'; // Right arrow (collapsed) : Down arrow (expanded)
+                        chatHeader.setAttribute('aria-expanded', !isExpanded);
+                    });
+                });
+
+                chatNavigation.classList.remove('hidden'); // Show navigation after chats are loaded
+                if (chats.length === 0) {
+                    chatContainer.innerHTML = '<p class="text-center text-gray-500">No chats found in the JSON file.</p>';
+                }
+                // After displaying, ensure the navigation is updated
+                updateNavigationVisibility();
+            }
+
+            /**
+             * Extracts and orders messages from the ChatGPT 'mapping' structure.
+             * This function attempts to reconstruct the conversation flow.
+             * @param {Object} mapping The 'mapping' object from a ChatGPT conversation.
+             * @param {string} currentNodeId The ID of the current (latest) node in the conversation.
+             * @returns {Array<Object>} An ordered array of message objects.
+             */
+            function extractMessages(mapping, currentNodeId) {
+                if (!mapping) return [];
+
+                const messages = [];
+                const nodeMap = new Map();
+
+                // Populate nodeMap for quick lookup
+                for (const key in mapping) {
+                    if (mapping.hasOwnProperty(key) && mapping[key].message) {
+                        nodeMap.set(key, mapping[key]);
+                    }
+                }
+
+                // Find the root message (message without a valid parent in the mapping)
+                let rootNodeId = null;
+                for (const key in mapping) {
+                    if (mapping.hasOwnProperty(key)) {
+                        const node = mapping[key];
+                        // A node is a root if it has no parent or its parent is not in the map
+                        if (node.parent === null || !nodeMap.has(node.parent)) {
+                            // Check if it's an actual message, not just an empty placeholder
+                            if (node.message && node.message.content && node.message.content.parts && node.message.content.parts.length > 0) {
+                                rootNodeId = key;
+                                break;
+                            }
+                        }
+                    }
+                }
+
+                // If no clear root found, try to find the start of a linear chain from current_node,
+                // or just take the first message in the mapping that isn't a "null" message.
+                if (!rootNodeId && currentNodeId && nodeMap.has(currentNodeId)) {
+                    let current = nodeMap.get(currentNodeId);
+                    while (current && current.parent && nodeMap.has(current.parent)) {
+                        current = nodeMap.get(current.parent);
+                    }
+                    if (current && current.message) { // Ensure it's a message node
+                        rootNodeId = current.id;
+                    }
+                }
+
+                // Fallback: just get any message that looks like a root if the above failed
+                if (!rootNodeId) {
+                    for (const key in mapping) {
+                        const node = mapping[key];
+                        if (node.message && node.message.content && node.message.content.parts && node.message.content.parts.length > 0 && !node.parent) {
+                            rootNodeId = key;
+                            break;
+                        }
+                    }
+                }
+
+
+                // If we still don't have a root, perhaps the structure is different or empty.
+                if (!rootNodeId && Object.keys(mapping).length > 0) {
+                    // Last ditch effort: find the first message that has children, or just any message
+                    for (const key in mapping) {
+                        const node = mapping[key];
+                        if (node.message && node.message.content && node.message.content.parts && node.message.content.parts.length > 0) {
+                            rootNodeId = key;
+                            break;
+                        }
+                    }
+                }
+
+
+                if (!rootNodeId) {
+                    return []; // No usable messages found
+                }
+
+                let currentId = rootNodeId;
+                while (currentId && nodeMap.has(currentId)) {
+                    const node = nodeMap.get(currentId);
+                    if (node && node.message) {
+                        messages.push(node.message);
+                    }
+
+                    // Move to the next message in the primary conversation branch
+                    // This typically assumes a single linear conversation flow from the root
+                    if (node.children && node.children.length > 0) {
+                        currentId = node.children[0]; // Take the first child for linear flow
+                    } else {
+                        currentId = null; // End of conversation branch
+                    }
+                }
+
+                return messages;
+            }
+
+            /**
+             * Filters the displayed chats based on a keyword.
+             * Chats are searched by title and content.
+             * @param {string} keyword The keyword to search for.
+             */
+            function filterChats(keyword) {
+                const lowerCaseKeyword = keyword.toLowerCase().trim();
+                let chatsFound = false;
+
+                // Iterate through all initially loaded chats, not just currently displayed ones
+                allChatsData.forEach((chat, index) => {
+                    const chatCard = document.getElementById(`chat-${index}`);
+                    if (!chatCard) return; // Should not happen if data is consistent
+
+                    const chatTitle = (chat.title || `Untitled Chat ${index + 1}`).toLowerCase();
+                    const chatContent = JSON.parse(chatCard.dataset.chatContent).map(c => c.toLowerCase()).join('\n'); // Reconstruct content for search
+
+                    let matches = false;
+                    if (lowerCaseKeyword === '') {
+                        matches = true; // Show all if search box is empty
+                    } else {
+                        if (chatTitle.includes(lowerCaseKeyword) || chatContent.includes(lowerCaseKeyword)) {
+                            matches = true;
+                        }
+                    }
+
+                    if (matches) {
+                        chatCard.style.display = 'block';
+                        chatsFound = true;
+                        // Also show/hide the corresponding nav item
+                        const navItem = navList.querySelector(`a[href="#chat-${index}"]`).parentNode;
+                        if (navItem) navItem.style.display = 'list-item';
+                    } else {
+                        chatCard.style.display = 'none';
+                        const navItem = navList.querySelector(`a[href="#chat-${index}"]`).parentNode;
+                        if (navItem) navItem.style.display = 'none';
+                    }
+                });
+
+                updateNavigationVisibility(); // Update the main navigation div's visibility
+                if (!chatsFound && lowerCaseKeyword !== '') {
+                    // Display a message if no chats found for the keyword
+                    chatContainer.innerHTML = '<p class="text-center text-gray-500">No chats found matching your search criteria.</p>';
+                } else if (!chatsFound && lowerCaseKeyword === '' && allChatsData.length === 0) {
+                    // Reset to initial message if no file loaded and search is cleared
+                    chatContainer.innerHTML = '<p class="text-center text-gray-500">Upload a JSON file to see your chats.</p>';
+                }
+            }
+
+            /**
+             * Updates the visibility of the chat navigation based on filtered chats.
+             */
+            function updateNavigationVisibility() {
+                const visibleNavItems = Array.from(navList.children).some(item => item.style.display !== 'none');
+                if (visibleNavItems) {
+                    chatNavigation.classList.remove('hidden');
+                } else {
+                    chatNavigation.classList.add('hidden');
+                }
+            }
+        });
+    </script>
+</body>
+</html>
