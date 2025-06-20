@@ -47,6 +47,9 @@
             border-radius: 0.25rem;
             font-family: monospace;
         }
+        .hidden-chat-item {
+            display: none !important;
+        }
     </style>
 </head>
 <body class="p-4 md:p-8 min-h-screen flex flex-col items-center">
@@ -76,13 +79,22 @@
             <span class="block sm:inline" id="errorMessage"></span>
         </div>
 
-        <!-- Search Bar -->
-        <div class="mb-6 flex flex-col sm:flex-row items-center justify-center gap-4 p-4 bg-gray-50 rounded-md shadow-inner">
-            <label for="searchInput" class="block text-gray-700 font-medium">Search Chats:</label>
-            <input type="text" id="searchInput" placeholder="Enter keyword..." class="flex-1 px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent">
-            <button id="searchButton" class="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded-md shadow-md transition-colors duration-200">
-                Search
-            </button>
+        <!-- Search Bar and Hidden Chat Toggle -->
+        <div class="mb-6 flex flex-col md:flex-row items-center justify-between gap-4 p-4 bg-gray-50 rounded-md shadow-inner">
+            <div class="flex items-center gap-2 w-full md:w-auto">
+                <label for="searchInput" class="block text-gray-700 font-medium whitespace-nowrap">Search Chats:</label>
+                <input type="text" id="searchInput" placeholder="Enter keyword..." class="flex-1 px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent min-w-[150px]">
+                <button id="searchButton" class="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded-md shadow-md transition-colors duration-200">
+                    Search
+                </button>
+            </div>
+            <div class="flex items-center gap-2 mt-4 md:mt-0">
+                <button id="showAllButton" class="bg-gray-400 hover:bg-gray-500 text-white font-bold py-2 px-4 rounded-md shadow-md transition-colors duration-200 whitespace-nowrap">
+                    Show All Chats
+                </button>
+                <input type="checkbox" id="showHiddenToggle" class="form-checkbox h-5 w-5 text-purple-600 rounded focus:ring-purple-500">
+                <label for="showHiddenToggle" class="text-gray-700 font-medium whitespace-nowrap">Show Hidden Chats</label>
+            </div>
         </div>
 
         <div id="chatNavigation" class="hidden bg-gray-50 p-4 rounded-md mb-6 max-h-60 overflow-y-auto shadow-inner">
@@ -109,18 +121,62 @@
             const navList = document.getElementById('navList');
             const searchInput = document.getElementById('searchInput');
             const searchButton = document.getElementById('searchButton');
+            const showHiddenToggle = document.getElementById('showHiddenToggle');
+            const showAllButton = document.getElementById('showAllButton'); // New button element
 
             let allChatsData = []; // Store all parsed chat data
+            const HIDDEN_CHATS_KEY = 'chatgptViewerHiddenChats'; // localStorage key
+
+            // --- Local Storage Helpers ---
+            /**
+             * Loads the set of hidden chat IDs from local storage.
+             * @returns {Set<string>} A Set containing IDs of hidden chats.
+             */
+            function loadHiddenChats() {
+                try {
+                    const hiddenChatsJson = localStorage.getItem(HIDDEN_CHATS_KEY);
+                    return hiddenChatsJson ? new Set(JSON.parse(hiddenChatsJson)) : new Set();
+                } catch (e) {
+                    console.error("Error loading hidden chats from localStorage:", e);
+                    return new Set();
+                }
+            }
+
+            /**
+             * Saves the set of hidden chat IDs to local storage.
+             * @param {Set<string>} hiddenChatsSet The Set of hidden chat IDs to save.
+             */
+            function saveHiddenChats(hiddenChatsSet) {
+                try {
+                    localStorage.setItem(HIDDEN_CHATS_KEY, JSON.stringify(Array.from(hiddenChatsSet)));
+                } catch (e) {
+                    console.error("Error saving hidden chats to localStorage:", e);
+                }
+            }
+
+            let hiddenChats = loadHiddenChats(); // Initialize hidden chats set
 
             // Listen for file selection
             jsonFile.addEventListener('change', handleFileSelect);
 
             // Listen for search button click and Enter key press in search input
-            searchButton.addEventListener('click', () => filterChats(searchInput.value));
+            searchButton.addEventListener('click', () => filterAndDisplayChats());
             searchInput.addEventListener('keyup', (event) => {
                 if (event.key === 'Enter') {
-                    filterChats(searchInput.value);
+                    filterAndDisplayChats();
                 }
+            });
+
+            // Listen for show hidden toggle change
+            showHiddenToggle.addEventListener('change', () => filterAndDisplayChats());
+
+            // Listen for 'Show All Chats' button click
+            showAllButton.addEventListener('click', () => {
+                hiddenChats.clear(); // Clear all hidden chats
+                saveHiddenChats(hiddenChats); // Save the empty set
+                showHiddenToggle.checked = false; // Uncheck the 'Show Hidden Chats' toggle
+                searchInput.value = ''; // Clear search input
+                filterAndDisplayChats(); // Re-render to show all
             });
 
             /**
@@ -149,7 +205,7 @@
                     try {
                         const json = JSON.parse(e.target.result);
                         allChatsData = json; // Store all chats
-                        displayChats(allChatsData); // Display all initially
+                        filterAndDisplayChats(); // Display all initially (applying hidden status)
                     } catch (error) {
                         console.error('Error parsing JSON:', error);
                         displayError('Invalid JSON file. Please ensure it\'s a valid ChatGPT export JSON.');
@@ -178,27 +234,32 @@
 
             /**
              * Processes the parsed JSON data and renders the chats.
-             * @param {Array<Object>} chats An array of chat objects from the JSON.
+             * This function is now responsible for both rendering and applying visibility filters.
              */
-            function displayChats(chats) {
-                if (!Array.isArray(chats) || chats.length === 0) {
-                    displayError('No chat data found in the JSON file. Please ensure it\'s a valid ChatGPT export.');
+            function filterAndDisplayChats() {
+                if (!Array.isArray(allChatsData) || allChatsData.length === 0) {
+                    chatContainer.innerHTML = '<p class="text-center text-gray-500">Upload a JSON file to see your chats.</p>';
+                    chatNavigation.classList.add('hidden');
                     return;
                 }
 
                 chatContainer.innerHTML = ''; // Clear previous chats
                 navList.innerHTML = '';      // Clear previous nav links
 
-                chats.forEach((chat, index) => {
+                const keyword = searchInput.value.toLowerCase().trim();
+                const showHidden = showHiddenToggle.checked;
+                let chatsFoundInFilter = 0;
+
+                allChatsData.forEach((chat, index) => {
                     // Create navigation link
                     const navItem = document.createElement('li');
                     const navLink = document.createElement('a');
-                    navLink.href = `#chat-${index}`;
+                    navLink.href = `#chat-${chat.id}`; // Use chat.id for consistent linking
                     navLink.textContent = chat.title || `Untitled Chat ${index + 1}`;
-                    navLink.classList.add('text-blue-600', 'hover:text-blue-800', 'hover:underline', 'transition-colors', 'duration-200');
+                    navLink.classList.add('hover:underline', 'transition-colors', 'duration-200'); // Base classes
                     navLink.onclick = (e) => {
                         e.preventDefault(); // Prevent default hash jump behavior
-                        const targetChat = document.getElementById(`chat-${index}`);
+                        const targetChat = document.getElementById(`chat-${chat.id}`);
                         if (targetChat) {
                             targetChat.scrollIntoView({ behavior: 'smooth', block: 'start' });
                             // Ensure the chat is expanded when navigated to
@@ -214,12 +275,12 @@
                     };
                     navItem.appendChild(navLink);
                     navList.appendChild(navItem);
+                    navItem.dataset.chatId = chat.id; // Store chat ID on nav item
 
                     // Create chat card
                     const chatCard = document.createElement('div');
-                    chatCard.id = `chat-${index}`;
-                    chatCard.classList.add('bg-gray-100', 'rounded-lg', 'shadow-md', 'overflow-hidden');
-                    chatCard.dataset.chatIndex = index; // Store original index for filtering
+                    chatCard.id = `chat-${chat.id}`; // Use chat.id for card ID
+                    chatCard.classList.add('bg-gray-100', 'rounded-lg', 'shadow-md', 'overflow-hidden', 'relative'); // Added 'relative' for positioning mark button
 
                     // Chat header (collapsible trigger)
                     const chatHeader = document.createElement('div');
@@ -237,7 +298,17 @@
                     toggleButton.innerHTML = '&#9658;'; // Right arrow (collapsed state)
                     toggleButton.setAttribute('aria-label', 'Toggle chat visibility');
 
+                    // Mark as Hidden/Show button
+                    const markHiddenBtn = document.createElement('button');
+                    markHiddenBtn.classList.add('mark-hidden-btn', 'text-sm', 'font-medium', 'py-1', 'px-3', 'rounded-full', 'transition-colors', 'duration-200', 'ml-2');
+                    markHiddenBtn.style.minWidth = '120px'; // Ensure consistent button width
+                    markHiddenBtn.onclick = (e) => {
+                        e.stopPropagation(); // Prevent toggling chat collapse
+                        toggleChatHiddenStatus(chat.id);
+                    };
+
                     chatHeader.appendChild(chatTitle);
+                    chatHeader.appendChild(markHiddenBtn); // Add the mark button
                     chatHeader.appendChild(toggleButton);
                     chatCard.appendChild(chatHeader);
 
@@ -245,9 +316,11 @@
                     const chatMessages = document.createElement('div');
                     chatMessages.classList.add('chat-messages', 'hidden', 'p-4'); // Hidden by default
 
-                    // Store messages directly for search efficiency later
                     const extractedMessages = extractMessages(chat.mapping, chat.current_node);
-                    chatCard.dataset.chatContent = JSON.stringify(extractedMessages.map(msg => msg.content?.parts?.join('\n') || ''));
+                    // Combine title and content for search
+                    const fullChatText = (chat.title || `Untitled Chat ${index + 1}`) + '\n' +
+                                         extractedMessages.map(msg => msg.content?.parts?.join('\n') || '').join('\n');
+
 
                     if (extractedMessages.length > 0) {
                         extractedMessages.forEach(msg => {
@@ -272,7 +345,6 @@
                                     roleClass = 'bg-gray-50 text-gray-800';
                                 }
 
-                                // Fix: Split the class string by space and add each class individually
                                 messageDiv.classList.add(...roleClass.split(' '));
 
                                 const authorSpan = document.createElement('span');
@@ -280,19 +352,15 @@
                                 authorSpan.textContent = `${roleText}:`;
                                 messageDiv.appendChild(authorSpan);
 
-                                // Use a temporary div to render markdown-like content (basic handling for now)
                                 const contentDiv = document.createElement('div');
-                                // Basic markdown-like formatting: bold, italic, code blocks
                                 let formattedContent = content
-                                    .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>') // **bold**
-                                    .replace(/\*(.*?)\*/g, '<em>$1</em>')     // *italic*
-                                    .replace(/`(.*?)`/g, '<code>$1</code>');  // `inline code`
+                                    .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
+                                    .replace(/\*(.*?)\*/g, '<em>$1</em>')
+                                    .replace(/`(.*?)`/g, '<code>$1</code>');
 
-                                // Simple pre-block detection for multi-line code
                                 formattedContent = formattedContent.replace(/```(.*?)```/gs, (match, code) => {
                                     return `<pre>${code.replace(/</g, '&lt;').replace(/>/g, '&gt;')}</pre>`;
                                 });
-
 
                                 contentDiv.innerHTML = formattedContent;
                                 messageDiv.appendChild(contentDiv);
@@ -315,14 +383,65 @@
                         toggleButton.innerHTML = isExpanded ? '&#9658;' : '&#9660;'; // Right arrow (collapsed) : Down arrow (expanded)
                         chatHeader.setAttribute('aria-expanded', !isExpanded);
                     });
+
+                    // --- Apply Filters and Update Button/Nav Link Styles ---
+                    const isHidden = hiddenChats.has(chat.id);
+                    const matchesSearch = keyword === '' || fullChatText.toLowerCase().includes(keyword);
+
+                    let shouldShow = true;
+                    if (isHidden && !showHidden) {
+                        shouldShow = false; // Hidden and toggle is off
+                    }
+                    if (!matchesSearch) {
+                        shouldShow = false; // Does not match search
+                    }
+
+                    // Update button text and style based on actual hidden status
+                    if (isHidden) {
+                        markHiddenBtn.textContent = 'Mark as Visible';
+                        markHiddenBtn.classList.add('bg-red-200', 'hover:bg-red-300', 'text-gray-800');
+                        markHiddenBtn.classList.remove('bg-red-500', 'hover:bg-red-600', 'text-white');
+                        navLink.classList.add('text-gray-400'); // Apply gray color for hidden nav links
+                        navLink.classList.remove('text-blue-600', 'hover:text-blue-800');
+                    } else {
+                        markHiddenBtn.textContent = 'Mark as Hidden';
+                        markHiddenBtn.classList.add('bg-red-500', 'hover:bg-red-600', 'text-white');
+                        markHiddenBtn.classList.remove('bg-red-200', 'hover:bg-red-300', 'text-gray-800');
+                        navLink.classList.add('text-blue-600'); // Apply blue color for visible nav links
+                        navLink.classList.remove('text-gray-400');
+                    }
+
+                    if (shouldShow) {
+                        chatCard.style.display = 'block';
+                        navItem.style.display = 'list-item';
+                        chatsFoundInFilter++;
+                    } else {
+                        chatCard.style.display = 'none';
+                        navItem.style.display = 'none';
+                    }
                 });
 
-                chatNavigation.classList.remove('hidden'); // Show navigation after chats are loaded
-                if (chats.length === 0) {
-                    chatContainer.innerHTML = '<p class="text-center text-gray-500">No chats found in the JSON file.</p>';
+                updateNavigationVisibility(); // Update the main navigation div's visibility
+
+                if (chatsFoundInFilter === 0 && (keyword !== '' || !showHidden)) {
+                    chatContainer.innerHTML = '<p class="text-center text-gray-500">No chats found matching your current filters.</p>';
+                } else if (chatsFoundInFilter === 0 && allChatsData.length === 0) {
+                    chatContainer.innerHTML = '<p class="text-center text-gray-500">Upload a JSON file to see your chats.</p>';
                 }
-                // After displaying, ensure the navigation is updated
-                updateNavigationVisibility();
+            }
+
+            /**
+             * Toggles the hidden status of a chat and re-renders the view.
+             * @param {string} chatId The ID of the chat to toggle.
+             */
+            function toggleChatHiddenStatus(chatId) {
+                if (hiddenChats.has(chatId)) {
+                    hiddenChats.delete(chatId);
+                } else {
+                    hiddenChats.add(chatId);
+                }
+                saveHiddenChats(hiddenChats);
+                filterAndDisplayChats(); // Re-render with updated hidden status
             }
 
             /**
@@ -419,55 +538,6 @@
                 }
 
                 return messages;
-            }
-
-            /**
-             * Filters the displayed chats based on a keyword.
-             * Chats are searched by title and content.
-             * @param {string} keyword The keyword to search for.
-             */
-            function filterChats(keyword) {
-                const lowerCaseKeyword = keyword.toLowerCase().trim();
-                let chatsFound = false;
-
-                // Iterate through all initially loaded chats, not just currently displayed ones
-                allChatsData.forEach((chat, index) => {
-                    const chatCard = document.getElementById(`chat-${index}`);
-                    if (!chatCard) return; // Should not happen if data is consistent
-
-                    const chatTitle = (chat.title || `Untitled Chat ${index + 1}`).toLowerCase();
-                    const chatContent = JSON.parse(chatCard.dataset.chatContent).map(c => c.toLowerCase()).join('\n'); // Reconstruct content for search
-
-                    let matches = false;
-                    if (lowerCaseKeyword === '') {
-                        matches = true; // Show all if search box is empty
-                    } else {
-                        if (chatTitle.includes(lowerCaseKeyword) || chatContent.includes(lowerCaseKeyword)) {
-                            matches = true;
-                        }
-                    }
-
-                    if (matches) {
-                        chatCard.style.display = 'block';
-                        chatsFound = true;
-                        // Also show/hide the corresponding nav item
-                        const navItem = navList.querySelector(`a[href="#chat-${index}"]`).parentNode;
-                        if (navItem) navItem.style.display = 'list-item';
-                    } else {
-                        chatCard.style.display = 'none';
-                        const navItem = navList.querySelector(`a[href="#chat-${index}"]`).parentNode;
-                        if (navItem) navItem.style.display = 'none';
-                    }
-                });
-
-                updateNavigationVisibility(); // Update the main navigation div's visibility
-                if (!chatsFound && lowerCaseKeyword !== '') {
-                    // Display a message if no chats found for the keyword
-                    chatContainer.innerHTML = '<p class="text-center text-gray-500">No chats found matching your search criteria.</p>';
-                } else if (!chatsFound && lowerCaseKeyword === '' && allChatsData.length === 0) {
-                    // Reset to initial message if no file loaded and search is cleared
-                    chatContainer.innerHTML = '<p class="text-center text-gray-500">Upload a JSON file to see your chats.</p>';
-                }
             }
 
             /**
