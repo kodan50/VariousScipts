@@ -1,0 +1,546 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>The Genre Wheel of Doom</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;700&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            background: linear-gradient(135deg, #1a1a2e 0%, #0f0f1c 100%);
+            color: #e0e0e0;
+            min-height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            padding: 1rem; /* Add some padding for small screens */
+            box-sizing: border-box; /* Ensure padding doesn't cause overflow */
+        }
+        .container {
+            max-width: 900px;
+            width: 100%;
+            background-color: #2a2a4a;
+            border-radius: 1.5rem; /* More rounded */
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
+            padding: 2.5rem; /* Increased padding */
+            animation: fadeIn 0.8s ease-out;
+        }
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(-20px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        .card {
+            background-color: #3b3b6b;
+            border-radius: 0.75rem;
+            padding: 1.5rem;
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.3);
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
+            align-items: center;
+            text-align: center;
+            transition: transform 0.2s ease-in-out, box-shadow 0.2s ease-in-out;
+        }
+        .card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 8px 25px rgba(0, 0, 0, 0.4);
+        }
+        .result-text {
+            font-size: 1.75rem; /* Larger text */
+            font-weight: 700;
+            color: #ffe066; /* Gold/yellow for results */
+            margin-top: 0.75rem;
+            min-height: 2.5em; /* Ensure consistent height even if text is short */
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            text-shadow: 0 0 8px rgba(255, 224, 102, 0.5);
+            transition: all 0.3s ease-out; /* Smooth transition for text changes */
+            word-break: break-word; /* Ensure long text wraps */
+        }
+        .button {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            padding: 0.75rem 1.5rem;
+            border-radius: 9999px; /* Pill shape */
+            font-weight: 700;
+            cursor: pointer;
+            transition: all 0.2s ease-in-out;
+            box-shadow: 0 5px 15px rgba(0, 0, 0, 0.3);
+            background-image: linear-gradient(45deg, #8b5cf6 0%, #ec4899 100%); /* Purple to Pink gradient */
+            color: white;
+            border: none;
+            text-shadow: 0 1px 2px rgba(0, 0, 0, 0.2);
+        }
+        .button:hover {
+            transform: translateY(-3px) scale(1.02);
+            box-shadow: 0 8px 20px rgba(0, 0, 0, 0.4);
+            background-image: linear-gradient(45deg, #a78bfa 0%, #f472b6 100%); /* Lighter gradient on hover */
+        }
+        .button:active {
+            transform: translateY(0);
+            box-shadow: 0 3px 10px rgba(0, 0, 0, 0.2);
+        }
+        .small-button {
+            background-color: #6a6a8b;
+            color: white;
+            padding: 0.4rem 0.8rem;
+            font-size: 0.8rem;
+            border-radius: 0.5rem;
+            transition: background-color 0.2s ease-in-out;
+        }
+        .small-button:hover {
+            background-color: #7c7ca0;
+        }
+        .copy-button {
+            background-color: #4CAF50; /* Green for copy */
+            color: white;
+            padding: 0.4rem 0.8rem;
+            font-size: 0.8rem;
+            border-radius: 0.5rem;
+            transition: background-color 0.2s ease-in-out;
+        }
+        .copy-button:hover {
+            background-color: #45a049;
+        }
+        .message-box {
+            position: fixed;
+            bottom: 1.5rem;
+            left: 50%;
+            transform: translateX(-50%);
+            background-color: rgba(0, 0, 0, 0.8);
+            color: white;
+            padding: 0.8rem 1.5rem;
+            border-radius: 0.75rem;
+            opacity: 0;
+            visibility: hidden;
+            transition: opacity 0.3s ease-in-out, visibility 0.3s ease-in-out;
+            z-index: 1000;
+        }
+        .message-box.show {
+            opacity: 1;
+            visibility: visible;
+        }
+        /* Styles for the new number generator section */
+        .number-generator-section {
+            background-color: #2a2a4a;
+            border-radius: 1.5rem;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
+            padding: 2.5rem;
+            margin-top: 2rem; /* Space between wheel and generator */
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            width: 100%;
+        }
+        .number-input-group {
+            display: flex;
+            gap: 1rem;
+            margin-bottom: 1.5rem;
+            align-items: center;
+        }
+        .number-input-group label {
+            font-weight: 600;
+            color: #ccc;
+        }
+        .number-input-group input {
+            background-color: #3b3b6b;
+            border: 1px solid #5a5a7b;
+            border-radius: 0.5rem;
+            padding: 0.5rem 0.75rem;
+            color: #e0e0e0;
+            width: 70px; /* Adjust width as needed */
+            text-align: center;
+        }
+        .number-result {
+            font-size: 2.5rem; /* Larger for the number result */
+            font-weight: 700;
+            color: #ffe066;
+            min-height: 1.5em; /* Ensure height */
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            text-shadow: 0 0 10px rgba(255, 224, 102, 0.6);
+            margin-top: 1rem;
+        }
+    </style>
+</head>
+<body>
+    <div class="container flex flex-col items-center">
+        <h1 class="text-4xl md:text-5xl font-bold text-center mb-8 text-white">
+            The <span class="text-yellow-400">Genre Wheel of Doom</span>
+        </h1>
+
+        <p class="text-lg text-center mb-8 text-gray-300">
+            Click 'Spin the Wheel!' to generate new music ideas for Suno, or re-roll individual categories.
+        </p>
+
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-6 w-full mb-8">
+            <div class="card">
+                <h2 class="text-2xl font-semibold text-gray-200 mb-3">Genre(s)</h2>
+                <div id="genreResult" class="result-text"></div>
+                <button class="small-button mt-4" onclick="generateRandom('genre')">Re-roll</button>
+            </div>
+
+            <div class="card">
+                <h2 class="text-2xl font-semibold text-gray-200 mb-3">Sub-Genre</h2>
+                <div id="subgenreResult" class="result-text"></div>
+                <button class="small-button mt-4" onclick="generateRandom('subgenre')">Re-roll</button>
+            </div>
+
+            <div class="card">
+                <h2 class="text-2xl font-semibold text-gray-200 mb-3">Modifier</h2>
+                <div id="modifierResult" class="result-text"></div>
+                <button class="small-button mt-4" onclick="generateRandom('modifier')">Re-roll</button>
+            </div>
+
+            <div class="card">
+                <h2 class="text-2xl font-semibold text-gray-200 mb-3">Vignette</h2>
+                <div id="vignetteResult" class="result-text"></div>
+                <button class="small-button mt-4" onclick="generateRandom('vignette')">Re-roll</button>
+            </div>
+
+            <div class="card flex-col col-span-1 md:col-span-2"> <h2 class="text-2xl font-semibold text-gray-200 mb-3">Full Prompt / Sample Name</h2>
+                <div id="fullPromptResult" class="result-text text-xl"></div> <div id="sampleNameResult" class="result-text"></div>
+                <div class="mt-4 flex space-x-2">
+                    <button class="small-button" onclick="generateRandom('sampleName')">Re-roll Sample Name</button>
+                    <button class="copy-button" onclick="copyFullPrompt()">Copy Full Prompt</button>
+                </div>
+            </div>
+        </div>
+
+        <button class="button px-8 py-4 text-xl font-bold" onclick="spinAll()">
+            Spin the Wheel!
+        </button>
+
+        <div class="number-generator-section">
+            <h2 class="text-3xl font-bold text-center mb-6 text-white">Random Number Generator</h2>
+            <div class="number-input-group">
+                <label for="lowValue">Low:</label>
+                <input type="number" id="lowValue" value="1" class="text-center">
+                <label for="highValue">High:</label>
+                <input type="number" id="highValue" value="100" class="text-center">
+            </div>
+            <button class="button px-6 py-3 text-lg font-bold" onclick="rollNumber()">
+                Roll Number!
+            </button>
+            <div id="randomNumberResult" class="number-result"></div>
+        </div>
+
+    </div>
+
+    <div id="messageBox" class="message-box"></div>
+
+    <script>
+        // --- Refined Naming Categories (for Sample Name) ---
+        const adjectives = [
+            "Fractal", "Haunted", "Bleeding", "Celestial", "Synthetic", "Polymorphic",
+            "Anachronistic", "Diachronic", "Spectral", "Quantum", "Ethereal", "Chaotic",
+            "Binary", "Null", "Stochastic", "Obsidian", "Liminal", "Dusty", "Crimson",
+            "Velvet", "Fractured", "Infinite", "Sunken", "Lunar", "Digital", "Winding",
+            "Chromatic", "Lost", "Ancient", "Burning", "Silent", "Electric", "Forgotten", "Broken"
+        ];
+
+        const nouns = [
+            "Pulse", "Shrine", "Circuit", "Memory", "Fog", "Silence", "Echo", "Collapse",
+            "Descent", "Entropy", "Chrysalis", "Clocks", "Zenith", "Midnight", "Kintsugi",
+            "Silentium", "Aetherroot", "Chronoscape", "Starlight", "Paradox", "Dreams",
+            "Requiem", "Serenade", "Groove", "Void", "Tide", "Nocturne", "Machine", "Shadows",
+            "Realities", "Blues", "Symphony", "Drift", "Heartbeat", "Road", "Lullaby",
+            "Cascade", "Stars", "Prophecy", "Ashes", "Whispers", "Storm", "Mirrors",
+            "Fragments", "Oblivion", "Wonder", "Resonance", "Harmonics", "Vibrations",
+            "Echoes", "Fields", "Artifacts", "Signals", "Patterns", "Dissonance",
+            "Residua", "Soundscapes", "Logic", "Protocol", "Firmware", "Orchard", "Assembly"
+        ];
+
+        const verbsIng = [
+            "Drifting", "Burning", "Flickering", "Cracking"
+        ];
+
+        const prefixesDeterminers = [
+            "The", "A", "Whispers of", "Echoes in the", "Shadows of", "Realm of",
+            "Chronicles of the", "Beast's", "A Glimmer of", "The Spirit of"
+        ];
+
+        const connectingPoeticPhrases = [
+            "in the Wires", "beneath Glass", "of the Forgotten", "in Sepia",
+            "Beyond the Veil", "Under the Ice", "Through the Static"
+        ];
+
+        // --- Our Agreed-Upon Musical Categories ---
+        const genres = [
+            "Electronic", "Rock", "Pop", "Hip Hop", "Jazz", "Classical", "Folk",
+            "R&B", "Country", "Metal", "Blues", "Reggae", "World", "Soundtrack",
+            "Spoken Word", "Afrobeat", "Funk"
+        ];
+
+        const subgenres = [
+            "Synthwave", "Punk Rock", "Hyperpop", "Trap Metal", "Bebop", "Baroque Pop",
+            "Neo-Soul", "Outlaw Country", "Deathcore", "Delta Blues", "Dub", "Drone",
+            "Chillwave", "Grime", "Dream Pop", "Epic Orchestral", "Darkwave", "EBM",
+            "Stoner Rock", "Future Funk", "Jazzy Hip Hop", "Hardcore", "Symphonic",
+            "Noise", "Neo-Folk", "Post-Industrial", "Acid Jazz", "Fusion", "Lo-Fi",
+            "Orchestral", "Post-Punk", "Trip Hop", "Ambient", "Trap", "Gothic",
+            "Industrial", "Vaporwave", "Chiptune", "Eurobeat", "Trance", "Techno",
+            "Mathcore", "Lounge", "House", "Symphonic Metal", "Minimal", "Bossa Nova",
+            "Americana","Americana","Doomcore","Space Western"
+        ];
+
+        const modifiers = [
+            "Acoustic", "8-bit", "Rustbelt", "Gritwave", "Haunted", "Molecular",
+            "Spectrogram", "Bioluminescent", "Void", "Rustic", "Arcane", "Whisper",
+            "Apocalyptic", "Broken", "Celestial", "Chill", "Cosmic", "Cyber", "Dark",
+            "Desert", "Dream", "Dungeon", "Hard", "Horror", "Math", "Noir",
+            "Theatrical", "Sacred", "Space", "Surf", "Synth", "Tropical", "Underwater",
+            "Urban", "Vapor", "VHS", "Winter", "Glass", "Progressive", "Psychedelic",
+            "Indie", "Avant-garde", "Baroque", "Cabaret", "Tripmetal", "Wave", "Oozecore", "Art"
+        ];
+
+        const vignettes = [
+            "All percussion is household objects", "All percussion made of footsteps",
+            "Created inside a cave with poor signal", "Every sound feels one step out of time",
+            "Every sound loops like a dream you can’t wake from", "Everything detunes slowly",
+            "Featuring a spaghetti western duel", "Inspired by breakfast cereal commercials",
+            "It loops like a bad dream", "It was found on a cursed floppy disk",
+            "It was made to summon something", "It’s a pirate radio transmission",
+            "It’s composed by forest animals", "It’s raining indoors",
+            "It's the credits theme to a lost 80s anime", "Mixed like an old cartoon",
+            "Mixed on a cassette player in 1992", "Only one functioning string on the instrument",
+            "Performed by underwater robots", "Played by malfunctioning robots",
+            "Played in a haunted shopping mall", "Soundtrack for a haunted elevator",
+            "The bassline is Morse code", "The drums are recorded in a sewer",
+            "The guitar only has 1 working string", "The only instrument is a toy piano",
+            "The synths are all crying", "There are whispers in the static",
+            "With broken children’s instruments", "You’re in a submarine", "sol/m⁸",
+            "Vengeance by Banjo", "In the style of the X-Files",
+            "You're an alien figuring out how music works", "The cosmic plants are humming",
+            "Too many kitchen spices in one dish", "Echoes of the Banished Kazoo Apocalypse",
+            "Campfire roasted Slow-Cooked Breakbeat", "Abandoned cabin synth rave",
+            "Glitched tea ceremony", "A glowing toaster in a back alley", "Alien potluck dinner",
+            "Percussion sounds like rusted machines sparring in a scrapyard arena",
+            "A lo-fi tide pool of soft synths and muffled seagull coos—music that's half-asleep and sun-warmed",
+            "Composed entirely by an AI that dreams in binary and regrets nothing",
+            "A slow dance between cello and static, lost in a rainy train station at dusk",
+            "Synth stabs and handclaps echo from a roller rink on Mars—perpetual motion with glitter wheels",
+            "Basslines coated in motor oil, vocals filtered through a chain-link fence",
+            "Distant music box melodies drowned in fog and field recordings from a haunted forest",
+            "Every instrument sounds like it was handcrafted by a mischievous clockmaker in a candy-colored workshop",
+            "Choral swells and cinematic drums echo across mountaintops—this track expects a dragon, minimum",
+            "A single piano note wanders across a stark sonic landscape like it lost its sheet music years ago",
+            "Loops so entrancing they might accidentally summon a sleepwalking cult",
+            "Math is optional in creative mode",
+            "Percussion rearranged itself mid-song, melodies arguing in different time signatures",
+            "Guitars drip like melting stars, vocals float somewhere between sleep and stardust",
+            "Clanging steel rhythms and hydraulic hiss turn every beat into factory poetry",
+            "Velvet synths glide over brushed snares like a jazz club on a cloud",
+            "Basslines strut like they know they’re irresistible—because they are",
+            "Gentle tones sway like hammock shadows, every note exhaling a little slower",
+            "Every sound kicks down the door—no fade-ins, only fire",
+            "Like your speakers are melting into the track on purpose",
+            "Echoes float like ghost-lanterns in the clouds, barely tethered to gravity",
+            "A hypnotic riff trapped in time—each cycle warps slightly as if it remembers",
+            "Melodies hiccup and stutter like corrupted memories trying to reboot",
+            "Unapologetically sweet—like bubblegum pop dipped in powdered sugar and neon syrup",
+            "Low-end tones simmer like a thunderstorm stuck on the horizon, all tension and no release",
+            "High synths twinkle like dew on glass, each note a refracted flash of serotonin",
+            "Melodies emerge and vanish like footprints in mist—heard once, doubted twice",
+            "Echo-laced vocals drift through detuned ambiance like memories that hum back",
+            "Built to lift—tempo climbs, synths swell, and suddenly you’re weightless at sunrise",
+            "The track dives deep into reverb caverns, discovering rhythm crystals in the dark",
+			"Inspired by late-night infomercials",
+			"Percussion crafted from the resonant taps of a ripe watermelon"
+        ];
+
+        // --- Templates for Sample Names (unchanged, these are great!) ---
+        const nameTemplates = [
+            () => `${getRandomItem(adjectives)} ${getRandomItem(nouns)}`,
+            () => `${getRandomItem(nouns)} of ${getRandomItem(nouns)}`,
+            () => `${getRandomItem(verbsIng)} ${getRandomItem(nouns)}`,
+            () => `${getRandomItem(prefixesDeterminers)} ${getRandomItem(nouns)}`,
+            () => `${getRandomItem(adjectives)} ${getRandomItem(nouns)} ${getRandomItem(connectingPoeticPhrases)}`,
+            () => `${getRandomItem(nouns)} of ${getRandomItem(adjectives)} ${getRandomItem(nouns)}`
+        ];
+
+        // Map categories to their respective data arrays and display elements
+        // This is updated to use our finalized lists and include 'vignette'
+        const categories = {
+            genre: { data: genres, elementId: 'genreResult' },
+            subgenre: { data: subgenres, elementId: 'subgenreResult' },
+            modifier: { data: modifiers, elementId: 'modifierResult' },
+            vignette: { data: vignettes, elementId: 'vignetteResult' }, // New vignette category
+            sampleName: { data: nameTemplates, elementId: 'sampleNameResult' }
+        };
+
+        // Current state for genre generation
+        let currentGenres = [];
+        let currentSubgenre = '';
+        let currentModifier = '';
+        let currentVignette = '';
+        let currentSampleName = '';
+
+        /**
+         * Initializes the application by generating initial random values.
+         */
+        function initApp() {
+            spinAll(); // Generate initial random values
+            document.getElementById('randomNumberResult').textContent = 'Roll a number!';
+        }
+
+        /**
+         * Displays a temporary message box at the bottom of the screen.
+         * @param {string} message - The message to display.
+         * @param {number} duration - The duration in milliseconds for which the message is visible.
+         */
+        function showMessageBox(message, duration = 2000) {
+            const messageBox = document.getElementById('messageBox');
+            messageBox.textContent = message;
+            messageBox.classList.add('show');
+            setTimeout(() => {
+                messageBox.classList.remove('show');
+            }, duration);
+        }
+
+        /**
+         * Helper function to get a random item from an array.
+         * @param {string[] | Function[]} array - The array to pick from, or array of functions for templates.
+         * @returns {string} A random item or a generated string from a function.
+         */
+        function getRandomItem(array) {
+            if (!array || array.length === 0) {
+                return "N/A"; // Or handle as an error
+            }
+            const randomIndex = Math.floor(Math.random() * array.length);
+            const item = array[randomIndex];
+            return typeof item === 'function' ? item() : item; // Execute if it's a function (template)
+        }
+
+        /**
+         * Generates a random entry for a specific category and updates its display.
+         * Handles special logic for 'genre' to allow for two genres.
+         * @param {string} categoryName - The name of the category (e.g., 'genre', 'subgenre', 'modifier', 'vignette', 'sampleName').
+         */
+        function generateRandom(categoryName) {
+            const category = categories[categoryName];
+            if (!category) {
+                console.error(`Invalid category: ${categoryName}`);
+                return;
+            }
+
+            let selectedItem;
+            if (categoryName === 'genre') {
+                currentGenres = []; // Reset for re-roll
+                const genre1 = getRandomItem(genres);
+                currentGenres.push(genre1);
+
+                // 50% chance for a second genre
+                if (Math.random() < 0.5) {
+                    let genre2 = getRandomItem(genres);
+                    // Ensure the second genre is different from the first
+                    while (genre2 === genre1) {
+                        genre2 = getRandomItem(genres);
+                    }
+                    currentGenres.push(genre2);
+                }
+                selectedItem = currentGenres.join(' / '); // Display as "Genre1 / Genre2"
+                document.getElementById(category.elementId).textContent = selectedItem;
+            } else if (categoryName === 'sampleName') {
+                selectedItem = getRandomItem(category.data);
+                currentSampleName = selectedItem;
+                document.getElementById(category.elementId).textContent = selectedItem;
+            } else {
+                selectedItem = getRandomItem(category.data);
+                document.getElementById(category.elementId).textContent = selectedItem;
+                if (categoryName === 'subgenre') currentSubgenre = selectedItem;
+                else if (categoryName === 'modifier') currentModifier = selectedItem;
+                else if (categoryName === 'vignette') currentVignette = selectedItem;
+            }
+            updateFullPrompt(); // Update the full prompt after each re-roll
+        }
+
+        /**
+         * Generates random entries for all categories and updates their displays.
+         */
+        function spinAll() {
+            generateRandom('genre'); // Handles 1 or 2 genres
+            generateRandom('subgenre');
+            generateRandom('modifier');
+            generateRandom('vignette');
+            generateRandom('sampleName'); // Generates a random sample name
+            updateFullPrompt();
+        }
+
+        /**
+         * Updates the full prompt string based on the currently selected genres, subgenre, modifier, and vignette.
+         */
+        function updateFullPrompt() {
+            let parts = [];
+            if (currentGenres.length > 0) {
+                parts.push(currentGenres.join(' ')); // Join genres with a space for the prompt
+            }
+            if (currentSubgenre && currentSubgenre !== 'N/A') {
+                parts.push(currentSubgenre);
+            }
+            if (currentModifier && currentModifier !== 'N/A') {
+                parts.push(currentModifier);
+            }
+            if (currentVignette && currentVignette !== 'N/A') {
+                parts.push(currentVignette);
+            }
+            document.getElementById('fullPromptResult').textContent = parts.join(', '); // Join parts with a comma and space
+        }
+
+        /**
+         * Copies the generated full prompt to the clipboard.
+         */
+        function copyFullPrompt() {
+            const fullPromptText = document.getElementById('fullPromptResult').textContent;
+            if (fullPromptText.length === 0 || fullPromptText.startsWith('N/A') || fullPromptText.includes('Invalid category')) {
+                showMessageBox('Nothing to copy yet!', 1500);
+                return;
+            }
+            navigator.clipboard.writeText(fullPromptText).then(() => {
+                showMessageBox('Full prompt copied!');
+            }).catch(err => {
+                console.error('Failed to copy text: ', err);
+                showMessageBox('Failed to copy. Please copy manually.');
+            });
+        }
+
+        /**
+         * Generates a random number between a specified low and high value (inclusive).
+         * Displays the result in the 'randomNumberResult' div.
+         */
+        function rollNumber() {
+            const lowInput = document.getElementById('lowValue');
+            const highInput = document.getElementById('highValue');
+            const resultElement = document.getElementById('randomNumberResult');
+
+            let low = parseInt(lowInput.value);
+            let high = parseInt(highInput.value);
+
+            if (isNaN(low) || isNaN(high)) {
+                resultElement.textContent = 'Please enter valid numbers.';
+                resultElement.style.color = '#ff6b6b';
+                return;
+            }
+
+            if (low > high) {
+                resultElement.textContent = 'Low value cannot be greater than high value.';
+                resultElement.style.color = '#ff6b6b';
+                return;
+            }
+
+            resultElement.style.color = '#ffe066'; // Reset to default color
+
+            const randomNumber = Math.floor(Math.random() * (high - low + 1)) + low;
+            resultElement.textContent = randomNumber;
+        }
+
+        // Initialize the app when the DOM is fully loaded
+        document.addEventListener('DOMContentLoaded', initApp);
+    </script>
+</body>
+</html>
