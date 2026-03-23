@@ -1,42 +1,24 @@
-#!/usr/bin/env bash
+#!/bin/bash
 
-SRC="$1"
-DST="$2"
+# Hardcoded IDs for safety, but could be variables
+SRC="/dev/disk/by-id/usb-SOURCE"
+DEST="/dev/disk/by-id/usb-DESTINATION"
 
-if [[ -z "$SRC" || -z "$DST" ]]; then
-    echo "Usage: $0 /dev/source /dev/destination"
+# 1. Condition Checks
+if [[ $EUID -ne 0 ]]; then
+   echo "This script must be run as root" 
+   exit 1
+fi
+
+if [ ! -b "$SRC" ] || [ ! -b "$DEST" ]; then
+    echo "Error: Source or Destination device not found."
     exit 1
 fi
 
-TOTAL_BYTES=$(blockdev --getsize64 "$SRC")
-echo "Total bytes: $TOTAL_BYTES"
+# 2. Get Capacity
+size=$(blockdev --getsize64 "$SRC")
+echo "Total size to copy: $size bytes"
 
-# Run dd in background
-dd if="$SRC" of="$DST" bs=4M status=progress &
-DDPID=$!
-
-# Poll dd every second
-while kill -0 "$DDPID" 2>/dev/null; do
-    # Send USR1 to force dd to print a progress line
-    kill -USR1 "$DDPID" 2>/dev/null
-    sleep 1
-
-    # Grab the latest progress line from dd's stderr
-    PROGRESS=$(grep -o '[0-9]\+ bytes' /proc/$DDPID/fd/2 | tail -n1 | awk '{print $1}')
-
-    if [[ -n "$PROGRESS" ]]; then
-        BYTES=$PROGRESS
-        SPEED=$(grep -o '[0-9.]\+ MB/s' /proc/$DDPID/fd/2 | tail -n1 | awk '{print $1}')
-
-        # Convert MB/s to bytes/s
-        SPEED_BYTES=$(awk -v m="$SPEED" 'BEGIN {print m * 1024 * 1024}')
-
-        REMAINING=$(awk -v t="$TOTAL_BYTES" -v b="$BYTES" -v s="$SPEED_BYTES" \
-            'BEGIN { if (s > 0) print (t - b) / s; else print -1 }')
-
-        echo "Copied: $BYTES / $TOTAL_BYTES | ETA: ${REMAINING}s"
-    fi
-done
-
-wait "$DDPID"
-echo "Done."
+# 3. Start dd in background
+# status=progress is available in GNU coreutils 8.24+
+dd if="$SRC" of="$DEST" bs=4M status=progress conv=fsync
