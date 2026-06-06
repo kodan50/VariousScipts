@@ -1,4 +1,12 @@
 #!/usr/bin/env bash
+
+# We want to make sure this runs as a root user.
+
+if [ $EUID != 0 ]; then
+    sudo "$0" "$@"
+    exit $?
+fi
+
 set -euo pipefail
 
 # Required packages (nwipe removed)
